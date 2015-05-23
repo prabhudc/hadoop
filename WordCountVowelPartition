@@ -1,0 +1,133 @@
+package WordCountVowel;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.StringTokenizer;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Partitioner;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.util.Tool;
+
+
+
+public class hadoopWordCountVowel extends Configured implements Tool {
+	
+	
+	
+	public static class Map extends Mapper<LongWritable, Text, Text, IntWritable>{
+		private final static IntWritable recCounter = new IntWritable(1);
+		private Text recText = new Text();
+		@Override
+			public void map(LongWritable key,Text value,Context context)
+				throws IOException, InterruptedException {
+			String line = value.toString();
+			StringTokenizer tokenizer = new StringTokenizer(line);
+			while (tokenizer.hasMoreTokens()){
+				recText.set(tokenizer.nextToken());
+				context.write(recText, recCounter);
+				
+			}
+		}
+				
+	}
+	
+	public static class Reduce extends Reducer<Text, IntWritable, Text, IntWritable> {
+		@Override
+		public void reduce(Text key, Iterable<IntWritable> value, Context context) throws IOException, InterruptedException
+			{
+			//Count 
+			int sum = 0;
+			Iterator<IntWritable> values = value.iterator();
+			while(values.hasNext()){
+				sum += values.next().get();
+			}
+			context.write(key,new IntWritable(sum));
+		}
+			
+	}
+public static class VowelPartitioner extends Partitioner<Text, IntWritable> {
+	public int getPartition(Text key, IntWritable value, int numReduceTasks) {
+		
+		return isVowel(key)	% numReduceTasks;
+		
+		
+		}
+	public int isVowel(Text key) {
+		String keyVal = new String(key.toString());
+		char c = keyVal.toUpperCase().charAt(0);
+				
+		
+		if(c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U' )
+			return 1;
+		else
+			return 2;
+		
+	}
+	
+	}
+
+	@Override
+	public int run(String[] args) throws Exception {
+		// TODO Auto-generated method stub
+		Configuration conf = new Configuration();
+		Job job = new Job(conf, "hadoopWordCount");
+		job.setJobName("hadoopWordCount");
+		job.setJarByClass(hadoopWordCountVowel.class);
+		job.setInputFormatClass(TextInputFormat.class);
+		job.setOutputFormatClass(TextOutputFormat.class);
+		job.setMapperClass(Map.class);
+		job.setMapOutputKeyClass(Text.class);
+		job.setMapOutputValueClass(IntWritable.class);
+		job.setReducerClass(Reduce.class);
+		job.setPartitionerClass(VowelPartitioner.class);
+		job.setNumReduceTasks(2);
+		TextInputFormat.addInputPath(job, new Path(args[0]));
+		job.setOutputKeyClass(Text.class);
+		job.setOutputValueClass(IntWritable.class);
+		TextOutputFormat.setOutputPath(job, new Path(args[1]));
+		
+		
+		boolean res = job.waitForCompletion(true);
+		if (res)
+			return 0;
+		else
+			return -1;
+		
+		//JobClient.runJob(job);
+		//job.submit();
+		//return 0;
+	}
+
+	public static void main(String[] args) throws Exception{
+		// TODO Auto-generated method stub
+		int res = ToolRunner.run(new hadoopWordCountVowel(), args);
+		System.exit(res);
+	}
+
+	@Override
+	public Configuration getConf() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void setConf(Configuration arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+}
